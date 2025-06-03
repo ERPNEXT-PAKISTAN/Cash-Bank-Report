@@ -64,3 +64,18 @@ FROM
 ORDER BY
   `Posting Date` ASC,
   `Voucher No` ASC;
+
+
+================================
+Filters:
+
+
+
+
+
+================================
+Columns:
+
+
+
+
