@@ -1,3 +1,5 @@
+message = "Cash & Bank Report"
+
 columns = [
     {"fieldname": "posting_date", "label": "Posting Date", "fieldtype": "Date", "width": 120},
     {"fieldname": "voucher_no", "label": "Voucher No", "fieldtype": "Data", "width": 180},
@@ -69,16 +71,28 @@ closing = frappe.db.sql("""
       AND posting_date <= %s
 """, (account, posting_date), as_dict=True)[0].balance or 0
 
-# Summary
+# Function to format with comma (no decimals)
+def format_with_comma(val):
+    val = int(val)
+    s = str(val)
+    if len(s) <= 3:
+        return s
+    parts = []
+    while len(s) > 3:
+        parts.insert(0, s[-3:])
+        s = s[:-3]
+    parts.insert(0, s)
+    return ",".join(parts)
+
+# Summary section
 summary = [
-    {"label": "Opening Balance", "value": int(opening), "indicator": "Orange"},
-    {"label": "Total Expense", "value": int(total_expense), "indicator": "Red"},
-    {"label": "Total Payments", "value": int(total_payments), "indicator": "Blue"},
-    {"label": "Total Receipts", "value": int(total_receipts), "indicator": "Green"},
-    {"label": "Closing Balance", "value": int(closing), "indicator": "Green"},
+    {"label": "Opening Balance", "value": format_with_comma(opening), "indicator": "Orange"},
+    {"label": "Total Expense", "value": format_with_comma(total_expense), "indicator": "Red"},
+    {"label": "Total Payments", "value": format_with_comma(total_payments), "indicator": "Blue"},
+    {"label": "Total Receipts", "value": format_with_comma(total_receipts), "indicator": "Green"},
+    {"label": "Closing Balance", "value": format_with_comma(closing), "indicator": "Green"},
 ]
 
-message = "Cash & Bank Report"
 data = columns, result, message, None, summary
 
 -----------------------------------------------
@@ -114,6 +128,7 @@ frappe.query_reports["Cash & Bank Report"] = {
       reqd: 1
     }
   ],
+
   onload: function (report) {
     report.page.add_inner_button("Printable HTML", function () {
       const filters = report.get_filter_values();
@@ -128,21 +143,21 @@ frappe.query_reports["Cash & Bank Report"] = {
           const summary = r.message.summary || [];
 
           const html = `
-            <div style="padding: 20px; font-family: sans-serif;">
-              <h2>Cash & Bank Report</h2>
+            <div style="padding: 20px; font-family: sans-serif; font-size: 12px;">
+              <h2 style="font-size: 16px;">Cash & Bank Report</h2>
               <p><strong>Posting Date:</strong> ${filters.posting_date}</p>
               <p><strong>Account:</strong> ${filters.account}</p>
               <br>
-              <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%;">
+              <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; font-size: 12px;">
                 <thead>
                   <tr>
                     <th>Posting Date</th>
                     <th>Voucher No</th>
                     <th>Against / Account</th>
                     <th>Remarks / Description</th>
-                    <th>Expense</th>
-                    <th>Payments</th>
-                    <th>Receipts</th>
+                    <th style="text-align:right;">Expense</th>
+                    <th style="text-align:right;">Payments</th>
+                    <th style="text-align:right;">Receipts</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -160,8 +175,8 @@ frappe.query_reports["Cash & Bank Report"] = {
                 </tbody>
               </table>
 
-              <br><h3>Summary</h3>
-              <ul>
+              <br><h3 style="font-size: 14px;">Summary</h3>
+              <ul style="font-size: 12px;">
                 ${summary.map(s => `<li><strong>${s.label}:</strong> ${format_number(s.value)}</li>`).join("")}
               </ul>
             </div>
