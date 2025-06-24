@@ -54,9 +54,9 @@ total_payments = sum(row[5] or 0 for row in mydata)
 total_receipts = sum(row[6] or 0 for row in mydata)
 
 summary = [
-    f"Total Expense Amount: Rs {total_expense:,.2f}",
-    f"Total Payments: Rs {total_payments:,.2f}",
-    f"Total Receipts: Rs {total_receipts:,.2f}"
+    {"label": "Total Expense Amount", "value": total_expense, "indicator": "Red"},
+    {"label": "Total Payments", "value": total_payments, "indicator": "Blue"},
+    {"label": "Total Receipts", "value": total_receipts, "indicator": "Green"},
 ]
 
 # ✅ Return with summary
@@ -66,10 +66,9 @@ data = columns, mydata, message, None, summary
 
 
 
+#Add this in Filter 
+Javascript
 
-
-#use this for filter:
-Javascript:
 frappe.query_reports["Cash With Anam2"] = {
   filters: [
     {
@@ -80,4 +79,3 @@ frappe.query_reports["Cash With Anam2"] = {
     }
   ]
 };
-
