@@ -1,39 +1,42 @@
-message = "Cash with Anam"
+message = "Cash Report"
 
 columns = [
     _("Posting Date") + ":Date:120",
     _("Voucher No") + "::195",
-    _("Against / Account") + "::200",
-    _("Remarks / Description") + "::250",
+    _("Against / Account") + "::250",
+    _("Remarks / Description") + "::350",
     _("Expense Amount") + ":Currency:120",
     _("Payments") + ":Currency:120",
     _("Receipts") + ":Currency:120",
 ]
 
-posting_date = filters.get("posting_date") if filters else None
+posting_date = filters.get("posting_date")
+account = filters.get("account")
 
 # ✅ Main Data Query
 mydata = frappe.db.sql("""
     WITH Combined AS (
         SELECT
-            gl.`posting_date` AS `Posting Date`,
-            gl.`voucher_no` AS `Voucher No`,
-            gl.`account` AS `Account`,
-            CONCAT_WS(' / ', gl.`against`, ecd.`default_account`) AS `Against / Account`,
-            CONCAT_WS(' | ', gl.`remarks`, REGEXP_REPLACE(ecd.`description`, '<[^>]*>', '')) AS `Remarks / Description`,
-            ecd.`amount` AS `Expense Amount`,
-            gl.`debit` AS `Total Debit`,
-            gl.`credit` AS `Total Credit`,
-            ROW_NUMBER() OVER (PARTITION BY gl.`voucher_no` ORDER BY ecd.`name`) AS rn
+            gl.posting_date AS `Posting Date`,
+            gl.voucher_no AS `Voucher No`,
+            gl.account AS `Account`,
+            CONCAT_WS(' / ', gl.against, ecd.default_account) AS `Against / Account`,
+            CONCAT_WS(' | ',
+                COALESCE(gl.remarks, ''),
+                COALESCE(REGEXP_REPLACE(ecd.description, '<[^>]*>', ''), '')
+            ) AS `Remarks / Description`,
+            ecd.amount AS `Expense Amount`,
+            gl.debit AS `Total Debit`,
+            gl.credit AS `Total Credit`,
+            ROW_NUMBER() OVER (PARTITION BY gl.voucher_no ORDER BY COALESCE(ecd.name, '')) AS rn
         FROM
             `tabGL Entry` gl
         LEFT JOIN
-            `tabExpense Claim Detail` ecd
-            ON gl.`voucher_no` = ecd.`parent`
+            `tabExpense Claim Detail` ecd ON gl.voucher_no = ecd.parent
         WHERE
-            gl.`is_cancelled` = 0
-            AND gl.`account` = "Cash with Anam - CCL"
-            AND gl.`posting_date` = %s
+            gl.is_cancelled = 0
+            AND gl.account = %s
+            AND gl.posting_date = %s
     )
     SELECT
         `Posting Date`,
@@ -47,55 +50,91 @@ mydata = frappe.db.sql("""
         Combined
     ORDER BY
         `Posting Date`, `Voucher No`
-""", (posting_date,), as_list=1)
+""", (account, posting_date), as_list=1)
 
-# ✅ Calculate Summary
+# ✅ Summary Totals
 total_expense = sum(row[4] or 0 for row in mydata)
 total_payments = sum(row[5] or 0 for row in mydata)
 total_receipts = sum(row[6] or 0 for row in mydata)
 
-# ✅ Opening & Closing Balance Calculation
 opening = frappe.db.sql("""
-    SELECT SUM(debit) - SUM(credit) AS balance
+    SELECT COALESCE(SUM(debit) - SUM(credit), 0) AS balance
     FROM `tabGL Entry`
-    WHERE `is_cancelled` = 0
-      AND `account` = "Cash with Anam - CCL"
-      AND `posting_date` < %s
-""", (posting_date,), as_dict=True)[0].balance or 0
+    WHERE is_cancelled = 0
+      AND account = %s
+      AND posting_date < %s
+""", (account, posting_date), as_dict=True)[0].balance or 0
 
 closing = frappe.db.sql("""
-    SELECT SUM(debit) - SUM(credit) AS balance
+    SELECT COALESCE(SUM(debit) - SUM(credit), 0) AS balance
     FROM `tabGL Entry`
-    WHERE `is_cancelled` = 0
-      AND `account` = "Cash with Anam - CCL"
-      AND `posting_date` <= %s
-""", (posting_date,), as_dict=True)[0].balance or 0
+    WHERE is_cancelled = 0
+      AND account = %s
+      AND posting_date <= %s
+""", (account, posting_date), as_dict=True)[0].balance or 0
 
-# ✅ Full Summary Section
+# ✅ Comma formatting function (safe in script reports)
+def format_no_decimal(val):
+    val = int(val)
+    s = str(val)
+    if len(s) <= 3:
+        return s
+    parts = []
+    while len(s) > 3:
+        parts.insert(0, s[-3:])
+        s = s[:-3]
+    parts.insert(0, s)
+    return ",".join(parts)
+
+# ✅ Summary with comma-separated numbers
 summary = [
-    {"label": f"Opening Balance", "value": opening, "indicator": "Orange"},
-    {"label": "Total Expense Amount", "value": total_expense, "indicator": "Red"},
-    {"label": "Total Payments", "value": total_payments, "indicator": "Blue"},
-    {"label": "Total Receipts", "value": total_receipts, "indicator": "Green"},
-    {"label": f"Closing Balance", "value": closing, "indicator": "Green"},
+    {"label": "Opening Balance", "value": format_no_decimal(opening), "indicator": "Orange"},
+    {"label": "Total Expense Amount", "value": format_no_decimal(total_expense), "indicator": "Red"},
+    {"label": "Total Payments", "value": format_no_decimal(total_payments), "indicator": "Blue"},
+    {"label": "Total Receipts", "value": format_no_decimal(total_receipts), "indicator": "Green"},
+    {"label": "Closing Balance", "value": format_no_decimal(closing), "indicator": "Green"},
 ]
 
-# ✅ Return Final Output
 data = columns, mydata, message, None, summary
 
 
+-------------------------------------
 
-
-# add in Filters
+# Add in Filter
 Javascript
 
-frappe.query_reports["Cash With Anam2"] = {
+frappe.query_reports["Cash & Bank Report"] = {
   filters: [
     {
       fieldname: "posting_date",
       label: "Posting Date",
       fieldtype: "Date",
-      default: frappe.datetime.get_today()
+      default: frappe.datetime.get_today(),
+      reqd: 1
+    },
+    {
+      fieldname: "account",
+      label: "Account",
+      fieldtype: "Select",
+      options: [
+        "Cash with Anam - CCL",
+        "Cash with Azhar - CCL",
+        "Cash with Boota - CCL",
+        "Cash with Khalil - CCL",
+        "Cash with Salman Sarwar - CCL",
+        "Cash with Suwaib - CCL",
+        "MBL 0103525749 - CCL",
+        "Bank Clearance - CCL",
+        "MBL Abdul Rehman - 083 - CCL",
+        "MBL Abdul Rehman - CCL",
+        "MBL Rutab Ahmad - CCL",
+      ],
+      default: "Cash with Anam - CCL",
+      reqd: 1
     }
   ]
 };
+
+
+
+
