@@ -69,7 +69,7 @@ data = columns, mydata, message, None, summary
 #Add this in Filter 
 Javascript
 
-frappe.query_reports["Cash With Anam2"] = {
+frappe.query_reports["Cash With Anam"] = {
   filters: [
     {
       fieldname: "posting_date",
