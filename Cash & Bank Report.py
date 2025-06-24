@@ -100,7 +100,8 @@ data = columns, mydata, message, None, summary
 
 -------------------------------------
 
-# Add in Filter
+# Add in Filter with Printable Button--
+
 Javascript
 
 frappe.query_reports["Cash & Bank Report"] = {
@@ -127,12 +128,77 @@ frappe.query_reports["Cash & Bank Report"] = {
         "Bank Clearance - CCL",
         "MBL Abdul Rehman - 083 - CCL",
         "MBL Abdul Rehman - CCL",
-        "MBL Rutab Ahmad - CCL",
+        "MBL Rutab Ahmad - CCL"
       ],
       default: "Cash with Anam - CCL",
       reqd: 1
     }
-  ]
+  ],
+  onload: function (report) {
+    report.page.add_inner_button("Printable HTML", function () {
+      const filters = report.get_filter_values();
+      frappe.call({
+        method: "frappe.desk.query_report.run",
+        args: {
+          report_name: "Cash & Bank Report",
+          filters: filters
+        },
+        callback: function (r) {
+          const data = r.message.result || [];
+          const summary = r.message.summary || [];
+
+          const html = `
+            <div style="padding: 20px; font-family: sans-serif;">
+              <h2>Cash & Bank Report</h2>
+              <p><strong>Posting Date:</strong> ${filters.posting_date}</p>
+              <p><strong>Account:</strong> ${filters.account}</p>
+              <br>
+              <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%;">
+                <thead>
+                  <tr>
+                    <th>Posting Date</th>
+                    <th>Voucher No</th>
+                    <th>Against / Account</th>
+                    <th>Remarks / Description</th>
+                    <th>Expense</th>
+                    <th>Payments</th>
+                    <th>Receipts</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${data.map(row => `
+                    <tr>
+                      <td>${row.posting_date || ""}</td>
+                      <td>${row.voucher_no || ""}</td>
+                      <td>${row.against_account || ""}</td>
+                      <td>${row.description || ""}</td>
+                      <td style="text-align:right;">${format_number(row.expense)}</td>
+                      <td style="text-align:right;">${format_number(row.payments)}</td>
+                      <td style="text-align:right;">${format_number(row.receipts)}</td>
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+
+              <br><h3>Summary</h3>
+              <ul>
+                ${summary.map(s => `<li><strong>${s.label}:</strong> ${format_number(s.value)}</li>`).join("")}
+              </ul>
+            </div>
+          `;
+
+          const newWindow = window.open();
+          newWindow.document.write(html);
+          newWindow.document.close();
+        }
+      });
+
+      function format_number(val) {
+        val = val || 0;
+        return parseFloat(val).toLocaleString("en-PK", { maximumFractionDigits: 0 });
+      }
+    });
+  }
 };
 
 
