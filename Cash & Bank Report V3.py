@@ -2,9 +2,9 @@ message = "Cash & Bank Report"
 
 columns = [
     {"fieldname": "posting_date", "label": "Posting Date", "fieldtype": "Date", "width": 120},
-    {"fieldname": "voucher_no", "label": "Voucher No", "fieldtype": "Data", "width": 180},
-    {"fieldname": "against_account", "label": "Against / Account", "fieldtype": "Data", "width": 200},
-    {"fieldname": "description", "label": "Remarks / Description", "fieldtype": "Data", "width": 300},
+    {"fieldname": "voucher_no", "label": "Voucher No", "fieldtype": "Data", "width": 200},
+    {"fieldname": "against_account", "label": "Against / Account", "fieldtype": "Data", "width": 300},
+    {"fieldname": "description", "label": "Remarks / Description", "fieldtype": "Data", "width": 400},
     {"fieldname": "expense", "label": "Expense", "fieldtype": "Currency", "width": 120},
     {"fieldname": "payments", "label": "Payments", "fieldtype": "Currency", "width": 120},
     {"fieldname": "receipts", "label": "Receipts", "fieldtype": "Currency", "width": 120},
