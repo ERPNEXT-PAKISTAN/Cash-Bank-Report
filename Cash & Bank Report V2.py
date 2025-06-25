@@ -1,52 +1,66 @@
-message = "Cash & Bank Report"
-
+message = []
 columns = [
     {"fieldname": "posting_date", "label": "Posting Date", "fieldtype": "Date", "width": 120},
-    {"fieldname": "voucher_no", "label": "Voucher No", "fieldtype": "Data", "width": 180},
-    {"fieldname": "against_account", "label": "Against / Account", "fieldtype": "Data", "width": 200},
-    {"fieldname": "description", "label": "Remarks / Description", "fieldtype": "Data", "width": 300},
-    {"fieldname": "expense", "label": "Expense", "fieldtype": "Currency", "width": 120},
-    {"fieldname": "payments", "label": "Payments", "fieldtype": "Currency", "width": 120},
-    {"fieldname": "receipts", "label": "Receipts", "fieldtype": "Currency", "width": 120},
+    {"fieldname": "voucher_no", "label": "Voucher No", "fieldtype": "Data", "width": 200},
+    {"fieldname": "against_account", "label": "Against / Account", "fieldtype": "Data", "width": 350},
+    {"fieldname": "description", "label": "Remarks / Description", "fieldtype": "Data", "width": 480},
+    {"fieldname": "expense", "label": "Expense", "fieldtype": "Currency", "width": 125},
+    {"fieldname": "payments", "label": "Payments", "fieldtype": "Currency", "width": 125},
+    {"fieldname": "receipts", "label": "Receipts", "fieldtype": "Currency", "width": 125},
 ]
 
 posting_date = filters.get("posting_date")
 account = filters.get("account")
 
 result = frappe.db.sql("""
-    WITH Combined AS (
+    WITH gl_data AS (
         SELECT
             gl.posting_date,
             gl.voucher_no,
             gl.account,
-            COALESCE(CONCAT_WS(' / ', gl.against, ecd.default_account), gl.against) AS against_account,
-            CONCAT_WS(' | ',
-                COALESCE(gl.remarks, ''),
-                COALESCE(REGEXP_REPLACE(ecd.description, '<[^>]*>', ''), '')
-            ) AS description,
-            COALESCE(ecd.amount, 0) AS expense,
-            gl.debit AS debit,
-            gl.credit AS credit,
-            ROW_NUMBER() OVER (PARTITION BY gl.voucher_no ORDER BY COALESCE(ecd.name, '')) AS rn
-        FROM
-            `tabGL Entry` gl
-        LEFT JOIN
-            `tabExpense Claim Detail` ecd ON gl.voucher_no = ecd.parent
+            gl.against,
+            gl.remarks,
+            gl.debit,
+            gl.credit,
+            ecd.default_account,
+            ecd.amount AS expense_amount,
+            REGEXP_REPLACE(ecd.description, '<[^>]*>', '') AS ecd_description,
+            ecd.name AS ecd_name
+        FROM `tabGL Entry` gl
+        LEFT JOIN `tabExpense Claim Detail` ecd ON gl.voucher_no = ecd.parent
         WHERE
             gl.is_cancelled = 0
             AND gl.account = %s
             AND gl.posting_date = %s
+    ),
+
+    numbered AS (
+        SELECT *,
+            CONCAT_WS(' / ', against, default_account) AS against_account,
+            CONCAT_WS(' | ', remarks, ecd_description) AS description,
+            ROW_NUMBER() OVER (
+                PARTITION BY voucher_no
+                ORDER BY ecd_name
+            ) AS rn
+        FROM gl_data
     )
+
     SELECT
         posting_date,
         voucher_no,
         against_account,
         description,
-        ROUND(expense, 0) AS expense,
-        CASE WHEN rn = 1 THEN ROUND(credit, 0) ELSE 0 END AS payments,
-        CASE WHEN rn = 1 THEN ROUND(debit, 0) ELSE 0 END AS receipts
-    FROM Combined
-    ORDER BY posting_date, voucher_no
+        -- show each expense detail row
+        ROUND(COALESCE(expense_amount, 0), 0) AS expense,
+        -- show payment only once per expense claim
+        CASE
+            WHEN voucher_no LIKE 'HR-EXP%%' AND rn = 1 THEN ROUND(credit, 0)
+            WHEN voucher_no LIKE 'HR-EXP%%' THEN 0
+            ELSE ROUND(credit, 0)
+        END AS payments,
+        ROUND(debit, 0) AS receipts
+    FROM numbered
+    ORDER BY posting_date, voucher_no, rn
 """, (account, posting_date), as_dict=True)
 
 # Totals
@@ -71,7 +85,6 @@ closing = frappe.db.sql("""
       AND posting_date <= %s
 """, (account, posting_date), as_dict=True)[0].balance or 0
 
-# Function to format with comma (no decimals)
 def format_with_comma(val):
     val = int(val)
     s = str(val)
@@ -84,16 +97,19 @@ def format_with_comma(val):
     parts.insert(0, s)
     return ",".join(parts)
 
-# Summary section
 summary = [
     {"label": "Opening Balance", "value": format_with_comma(opening), "indicator": "Orange"},
+    {"label": "Today Receipts", "value": format_with_comma(total_receipts), "indicator": "Green"},
+    {"label": "Total Balance", "value": format_with_comma(opening + total_receipts), "indicator": "Blue"},
     {"label": "Total Expense", "value": format_with_comma(total_expense), "indicator": "Red"},
-    {"label": "Total Payments", "value": format_with_comma(total_payments), "indicator": "Blue"},
-    {"label": "Total Receipts", "value": format_with_comma(total_receipts), "indicator": "Green"},
+    {"label": "Other Payments", "value": format_with_comma(total_payments - total_expense), "indicator": "Red"},
+    {"label": "Total Payments", "value": format_with_comma(total_payments), "indicator": "Red"},
     {"label": "Closing Balance", "value": format_with_comma(closing), "indicator": "Green"},
+    
 ]
 
-data = columns, result, message, None, summary
+
+data = columns, result, message, None, summary, None
 
 -----------------------------------------------
 
