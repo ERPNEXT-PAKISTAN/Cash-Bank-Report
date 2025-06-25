@@ -1,62 +1,74 @@
-message = "Cash Report"
-
+message = []
 columns = [
-    _("Posting Date") + ":Date:120",
-    _("Voucher No") + "::195",
-    _("Against / Account") + "::250",
-    _("Remarks / Description") + "::350",
-    _("Expense Amount") + ":Currency:120",
-    _("Payments") + ":Currency:120",
-    _("Receipts") + ":Currency:120",
+    {"fieldname": "posting_date", "label": "Posting Date", "fieldtype": "Date", "width": 120},
+    {"fieldname": "voucher_no", "label": "Voucher No", "fieldtype": "Data", "width": 200},
+    {"fieldname": "against_account", "label": "Against / Account", "fieldtype": "Data", "width": 350},
+    {"fieldname": "description", "label": "Remarks / Description", "fieldtype": "Data", "width": 480},
+    {"fieldname": "expense", "label": "Expense", "fieldtype": "Currency", "width": 125},
+    {"fieldname": "payments", "label": "Payments", "fieldtype": "Currency", "width": 125},
+    {"fieldname": "receipts", "label": "Receipts", "fieldtype": "Currency", "width": 125},
 ]
 
 posting_date = filters.get("posting_date")
 account = filters.get("account")
 
-# ✅ Main Data Query
-mydata = frappe.db.sql("""
-    WITH Combined AS (
+result = frappe.db.sql("""
+    WITH gl_data AS (
         SELECT
-            gl.posting_date AS `Posting Date`,
-            gl.voucher_no AS `Voucher No`,
-            gl.account AS `Account`,
-            CONCAT_WS(' / ', gl.against, ecd.default_account) AS `Against / Account`,
-            CONCAT_WS(' | ',
-                COALESCE(gl.remarks, ''),
-                COALESCE(REGEXP_REPLACE(ecd.description, '<[^>]*>', ''), '')
-            ) AS `Remarks / Description`,
-            ecd.amount AS `Expense Amount`,
-            gl.debit AS `Total Debit`,
-            gl.credit AS `Total Credit`,
-            ROW_NUMBER() OVER (PARTITION BY gl.voucher_no ORDER BY COALESCE(ecd.name, '')) AS rn
-        FROM
-            `tabGL Entry` gl
-        LEFT JOIN
-            `tabExpense Claim Detail` ecd ON gl.voucher_no = ecd.parent
+            gl.posting_date,
+            gl.voucher_no,
+            gl.account,
+            gl.against,
+            gl.remarks,
+            gl.debit,
+            gl.credit,
+            ecd.default_account,
+            ecd.amount AS expense_amount,
+            REGEXP_REPLACE(ecd.description, '<[^>]*>', '') AS ecd_description,
+            ecd.name AS ecd_name
+        FROM `tabGL Entry` gl
+        LEFT JOIN `tabExpense Claim Detail` ecd ON gl.voucher_no = ecd.parent
         WHERE
             gl.is_cancelled = 0
             AND gl.account = %s
             AND gl.posting_date = %s
+    ),
+
+    numbered AS (
+        SELECT *,
+            CONCAT_WS(' / ', against, default_account) AS against_account,
+            CONCAT_WS(' | ', remarks, ecd_description) AS description,
+            ROW_NUMBER() OVER (
+                PARTITION BY voucher_no
+                ORDER BY ecd_name
+            ) AS rn
+        FROM gl_data
     )
+
     SELECT
-        `Posting Date`,
-        `Voucher No`,
-        `Against / Account`,
-        `Remarks / Description`,
-        `Expense Amount`,
-        CASE WHEN rn = 1 THEN `Total Credit` ELSE NULL END AS `Payments`,
-        CASE WHEN rn = 1 THEN `Total Debit` ELSE NULL END AS `Receipts`
-    FROM
-        Combined
-    ORDER BY
-        `Posting Date`, `Voucher No`
-""", (account, posting_date), as_list=1)
+        posting_date,
+        voucher_no,
+        against_account,
+        description,
+        -- show each expense detail row
+        ROUND(COALESCE(expense_amount, 0), 0) AS expense,
+        -- show payment only once per expense claim
+        CASE
+            WHEN voucher_no LIKE 'HR-EXP%%' AND rn = 1 THEN ROUND(credit, 0)
+            WHEN voucher_no LIKE 'HR-EXP%%' THEN 0
+            ELSE ROUND(credit, 0)
+        END AS payments,
+        ROUND(debit, 0) AS receipts
+    FROM numbered
+    ORDER BY posting_date, voucher_no, rn
+""", (account, posting_date), as_dict=True)
 
-# ✅ Summary Totals
-total_expense = sum(row[4] or 0 for row in mydata)
-total_payments = sum(row[5] or 0 for row in mydata)
-total_receipts = sum(row[6] or 0 for row in mydata)
+# Totals
+total_expense = sum(row.expense or 0 for row in result)
+total_payments = sum(row.payments or 0 for row in result)
+total_receipts = sum(row.receipts or 0 for row in result)
 
+# Opening and Closing Balances
 opening = frappe.db.sql("""
     SELECT COALESCE(SUM(debit) - SUM(credit), 0) AS balance
     FROM `tabGL Entry`
@@ -73,8 +85,7 @@ closing = frappe.db.sql("""
       AND posting_date <= %s
 """, (account, posting_date), as_dict=True)[0].balance or 0
 
-# ✅ Comma formatting function (safe in script reports)
-def format_no_decimal(val):
+def format_with_comma(val):
     val = int(val)
     s = str(val)
     if len(s) <= 3:
@@ -86,17 +97,19 @@ def format_no_decimal(val):
     parts.insert(0, s)
     return ",".join(parts)
 
-# ✅ Summary with comma-separated numbers
 summary = [
-    {"label": "Opening Balance", "value": format_no_decimal(opening), "indicator": "Orange"},
-    {"label": "Total Expense Amount", "value": format_no_decimal(total_expense), "indicator": "Red"},
-    {"label": "Total Payments", "value": format_no_decimal(total_payments), "indicator": "Blue"},
-    {"label": "Total Receipts", "value": format_no_decimal(total_receipts), "indicator": "Green"},
-    {"label": "Closing Balance", "value": format_no_decimal(closing), "indicator": "Green"},
+    {"label": "Opening Balance", "value": format_with_comma(opening), "indicator": "Orange"},
+    {"label": "Today Receipts", "value": format_with_comma(total_receipts), "indicator": "Green"},
+    {"label": "Total Balance", "value": format_with_comma(opening + total_receipts), "indicator": "Blue"},
+    {"label": "Total Expense", "value": format_with_comma(total_expense), "indicator": "Red"},
+    {"label": "Other Payments", "value": format_with_comma(total_payments - total_expense), "indicator": "Red"},
+    {"label": "Total Payments", "value": format_with_comma(total_payments), "indicator": "Red"},
+    {"label": "Closing Balance", "value": format_with_comma(closing), "indicator": "Green"},
+    
 ]
 
-data = columns, mydata, message, None, summary
 
+data = columns, result, message, None, summary, None
 
 -------------------------------------
 
