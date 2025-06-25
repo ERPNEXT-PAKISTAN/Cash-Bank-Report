@@ -101,15 +101,16 @@ summary = [
     {"label": "Opening Balance", "value": format_with_comma(opening), "indicator": "Orange"},
     {"label": "Today Receipts", "value": format_with_comma(total_receipts), "indicator": "Green"},
     {"label": "Total Balance", "value": format_with_comma(opening + total_receipts), "indicator": "Blue"},
+    {"label": "Net Cash Flow", "value": format_with_comma(total_receipts - total_payments), "indicator": "Blue"},
+    {"label": "Total Payments", "value": format_with_comma(total_payments), "indicator": "Red"},
     {"label": "Total Expense", "value": format_with_comma(total_expense), "indicator": "Red"},
     {"label": "Other Payments", "value": format_with_comma(total_payments - total_expense), "indicator": "Red"},
-    {"label": "Total Payments", "value": format_with_comma(total_payments), "indicator": "Red"},
     {"label": "Closing Balance", "value": format_with_comma(closing), "indicator": "Green"},
-    
 ]
 
 
-data = columns, result, message, None, summary, None
+
+data = columns, result, message, None, summary
 
 -----------------------------
 
