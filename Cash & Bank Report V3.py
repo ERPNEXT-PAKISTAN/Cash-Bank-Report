@@ -339,15 +339,15 @@ frappe.query_reports["Cash & Bank Report"] = {
                   @media print {
                     @page { size: landscape; margin: 10mm; }
                   }
-                  body { font-family: sans-serif; font-size: 12px; margin: 20px; }
+                  body { font-family: sans-serif; font-size: 12px; margin: 10px; }
                   .header { display: flex; justify-content: space-between; align-items: center; }
                   .header-left { text-align: left; }
-                  .header-right img { max-width: 80px; }
+                  .header-right img { max-width: 70px; }
                   table {
                     width: 100%;
                     border-collapse: collapse;
                     font-size: 12px;
-                    margin-top: 20px;
+                    margin-top: 5px;
                     table-layout: fixed;
                     word-wrap: break-word;
                   }
