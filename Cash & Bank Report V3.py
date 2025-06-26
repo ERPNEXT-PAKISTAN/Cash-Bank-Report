@@ -162,7 +162,6 @@ frappe.query_reports["Cash & Bank Report"] = {
         }
 
         try {
-          // Run the report
           const result = await new Promise((resolve, reject) => {
             frappe.call({
               method: "frappe.desk.query_report.run",
@@ -183,12 +182,6 @@ frappe.query_reports["Cash & Bank Report"] = {
           const data = result.message.result || [];
           const summary = result.message.summary || [];
 
-          // Log for debugging
-          console.log("Full Result:", JSON.stringify(result, null, 2));
-          console.log("Summary:", summary);
-          console.log("Data:", data);
-
-          // Compute totals from data for the detailed ledger table and fallback summary
           let total_expense = 0, total_payments = 0, total_receipts = 0;
           data.forEach(row => {
             total_expense += parseFloat(row.expense || 0);
@@ -196,7 +189,6 @@ frappe.query_reports["Cash & Bank Report"] = {
             total_receipts += parseFloat(row.receipts || 0);
           });
 
-          // Format number to match Python's format_with_comma
           function format_number(val) {
             try {
               val = parseInt(val) || 0;
@@ -215,7 +207,6 @@ frappe.query_reports["Cash & Bank Report"] = {
             }
           }
 
-          // Extract summary values or compute fallback
           let summaryMap = {};
           if (summary && summary.length > 0) {
             summary.forEach(item => {
@@ -227,7 +218,6 @@ frappe.query_reports["Cash & Bank Report"] = {
             });
           } else {
             console.warn("Summary array is empty, computing fallback values from data");
-            // Fetch opening and closing balances from backend
             const openingBalanceRes = await frappe.call({
               method: "frappe.client.get_value",
               args: {
@@ -256,7 +246,6 @@ frappe.query_reports["Cash & Bank Report"] = {
             });
             const closing = closingBalanceRes.message?.balance || 0;
 
-            // Build fallback summary
             summaryMap = {
               "Opening Balance": format_number(opening),
               "Today Receipts": format_number(total_receipts),
@@ -269,16 +258,9 @@ frappe.query_reports["Cash & Bank Report"] = {
             };
           }
 
-          // Verify required summary keys
           const requiredKeys = [
-            "Opening Balance",
-            "Today Receipts",
-            "Total Balance",
-            "Net Cash Flow",
-            "Total Payments",
-            "Total Expense",
-            "Other Payments",
-            "Closing Balance"
+            "Opening Balance", "Today Receipts", "Total Balance", "Net Cash Flow",
+            "Total Payments", "Total Expense", "Other Payments", "Closing Balance"
           ];
           requiredKeys.forEach(key => {
             if (!summaryMap[key]) {
@@ -287,21 +269,15 @@ frappe.query_reports["Cash & Bank Report"] = {
             }
           });
 
-          // Fetch company info
           const companyRes = await frappe.db.get_value("Company", { name: frappe.defaults.get_default("company") }, "*");
           const company = companyRes.message || {};
           const companyName = company.name || "";
           const logoUrl = company.logo ? company.logo : "/files/logo CCL.JPG";
 
-          // Build two Summary Tables (300px each)
           const balancesHtml = `
             <div style="margin-bottom: 20px; display: inline-block; vertical-align: top;">
               <table style="width: 300px; border-collapse: collapse; table-layout: fixed;">
-                <thead>
-                  <tr style="background-color: #f2f2f2;">
-                    <th colspan="2" style="border: 2px solid #0d0405; padding: 8px;">Opening Balance,  Receipts & Cashflow</th>
-                  </tr>
-                </thead>
+                <thead><tr style="background-color: #f2f2f2;"><th colspan="2" style="border: 2px solid #0d0405; padding: 8px;">Opening Balance, Receipts & Cashflow</th></tr></thead>
                 <tbody>
                   <tr><td style="border: 1px solid #050000; padding: 5px;">Opening Balance</td><td style="border: 1px solid #050000; padding: 6px; text-align: right;">${summaryMap["Opening Balance"]}</td></tr>
                   <tr><td style="border: 1px solid #050000; padding: 5px;">Today Receipts</td><td style="border: 1px solid #050000; padding: 6px; text-align: right;">${summaryMap["Today Receipts"]}</td></tr>
@@ -315,22 +291,17 @@ frappe.query_reports["Cash & Bank Report"] = {
           const summaryHtml = `
             <div style="margin-bottom: 20px; display: inline-block; vertical-align: top; margin-left: 20px;">
               <table style="width: 300px; border-collapse: collapse; table-layout: fixed;">
-                <thead>
-                  <tr style="background-color: #f2f2f2;">
-                    <th colspan="2" style="border: 2px solid #0d0405; padding: 8px;">Expenses, Payments & Closing Balance</th>
-                  </tr>
-                </thead>
+                <thead><tr style="background-color: #f2f2f2;"><th colspan="2" style="border: 2px solid #0d0405; padding: 8px;">Expenses, Payments & Closing Balance</th></tr></thead>
                 <tbody>
-                  <tr><td style="border: 1px solid #050000; padding: 6px;">Total Payments</td><td style="border: 1px solid #050000; padding: 6px; text-align: right;">${summaryMap["Total Payments"]}</td></tr>
-                  <tr><td style="border: 1px solid #050000; padding: 6px;">Total Expense</td><td style="border: 1px solid #050000; padding: 6px; text-align: right;">${summaryMap["Total Expense"]}</td></tr>
-                  <tr><td style="border: 1px solid #050000; padding: 6px;">Other Payments</td><td style="border: 1px solid #050000; padding: 6px; text-align: right;">${summaryMap["Other Payments"]}</td></tr>
-                  <tr><td style="border: 1px solid #050000; padding: 6px;">Closing Balance</td><td style="border: 1px solid #050000; padding: 6px; text-align: right;">${summaryMap["Closing Balance"]}</td></tr>
+                  <tr><td style="border: 1px solid #050000; padding: 5px;">Total Payments</td><td style="border: 1px solid #050000; padding: 6px; text-align: right;">${summaryMap["Total Payments"]}</td></tr>
+                  <tr><td style="border: 1px solid #050000; padding: 5px;">Total Expense</td><td style="border: 1px solid #050000; padding: 6px; text-align: right;">${summaryMap["Total Expense"]}</td></tr>
+                  <tr><td style="border: 1px solid #050000; padding: 5px;">Other Payments</td><td style="border: 1px solid #050000; padding: 6px; text-align: right;">${summaryMap["Other Payments"]}</td></tr>
+                  <tr><td style="border: 1px solid #050000; padding: 5px;">Closing Balance</td><td style="border: 1px solid #050000; padding: 6px; text-align: right;">${summaryMap["Closing Balance"]}</td></tr>
                 </tbody>
               </table>
             </div>
           `;
 
-          // Generate Printable HTML
           const html = `
             <html>
               <head>
@@ -360,10 +331,14 @@ frappe.query_reports["Cash & Bank Report"] = {
                   ul { padding-left: 20px; }
                   .footer {
                     margin-top: 50px;
-                    text-align: center;
-                    font-size: 10px;
-                    color: #e1f7f7;
+                    font-size: 12px;
+                    color: black;
+                    display: flex;
+                    justify-content: space-between;
                   }
+                  .footer-left { text-align: left; }
+                  .footer-center { text-align: center; }
+                  .footer-right { text-align: right; }
                 </style>
               </head>
               <body>
@@ -420,7 +395,9 @@ frappe.query_reports["Cash & Bank Report"] = {
                 </table>
 
                 <div class="footer">
-                  Generated on ${frappe.datetime.nowdate()} — Powered by Tech Craft Pvt Ltd
+                  <div class="footer-left">Created by: ${frappe.session.user}</div>
+                  <div class="footer-center">Submitted By: Not Submitted</div>
+                  <div class="footer-right">Approved By: Taimoor</div>
                 </div>
               </body>
             </html>
