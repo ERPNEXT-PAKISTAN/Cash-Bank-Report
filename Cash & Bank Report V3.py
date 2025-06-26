@@ -342,7 +342,7 @@ frappe.query_reports["Cash & Bank Report"] = {
                   body { font-family: sans-serif; font-size: 12px; margin: 20px; }
                   .header { display: flex; justify-content: space-between; align-items: center; }
                   .header-left { text-align: left; }
-                  .header-right img { max-width: 150px; }
+                  .header-right img { max-width: 80px; }
                   table {
                     width: 100%;
                     border-collapse: collapse;
@@ -356,7 +356,7 @@ frappe.query_reports["Cash & Bank Report"] = {
                     padding: 5px;
                     text-align: left;
                   }
-                  th { background-color: #f8facf; }
+                  th { background-color: #f8facf; font-weight: bold; }
                   ul { padding-left: 20px; }
                   .footer {
                     margin-top: 50px;
