@@ -184,6 +184,7 @@ frappe.query_reports["Cash & Bank Report"] = {
             total_payments += parseFloat(row.payments || 0);
             total_receipts += parseFloat(row.receipts || 0);
           });
+
           function format_number(val) {
             try {
               val = parseInt(val) || 0;
@@ -201,6 +202,7 @@ frappe.query_reports["Cash & Bank Report"] = {
               return "0";
             }
           }
+
           let summaryMap = {};
           if (summary && summary.length > 0) {
             summary.forEach(item => {
@@ -249,6 +251,7 @@ frappe.query_reports["Cash & Bank Report"] = {
               "Closing Balance": format_number(closing)
             };
           }
+
           const requiredKeys = [
             "Opening Balance", "Today Receipts", "Total Balance", "Net Cash Flow",
             "Total Payments", "Total Expense", "Other Payments", "Closing Balance"
@@ -259,10 +262,12 @@ frappe.query_reports["Cash & Bank Report"] = {
               summaryMap[key] = "0";
             }
           });
+
           const companyRes = await frappe.db.get_value("Company", { name: frappe.defaults.get_default("company") }, "*");
           const company = companyRes.message || {};
           const companyName = company.name || "";
           const logoUrl = company.logo ? company.logo : "/files/logo CCL.JPG";
+
           const balancesHtml = `
             <div style="margin-bottom: 20px; display: inline-block; vertical-align: top;">
               <table style="width: 300px; border-collapse: collapse; table-layout: fixed;">
@@ -276,6 +281,7 @@ frappe.query_reports["Cash & Bank Report"] = {
               </table>
             </div>
           `;
+
           const summaryHtml = `
             <div style="margin-bottom: 20px; display: inline-block; vertical-align: top; margin-left: 20px;">
               <table style="width: 300px; border-collapse: collapse; table-layout: fixed;">
@@ -289,6 +295,7 @@ frappe.query_reports["Cash & Bank Report"] = {
               </table>
             </div>
           `;
+
           const html = `
             <html>
               <head>
@@ -317,15 +324,22 @@ frappe.query_reports["Cash & Bank Report"] = {
                   th { background-color: #f8facf; font-weight: bold; }
                   ul { padding-left: 20px; }
                   .footer {
-                    margin-top: 50px;
+                    margin-top: 80px;
                     font-size: 12px;
                     color: black;
                     display: flex;
                     justify-content: space-between;
                   }
-                  .footer-left { text-align: left; }
-                  .footer-center { text-align: center; }
-                  .footer-right { text-align: right; }
+                  .footer-left, .footer-center, .footer-right {
+                    width: 30%;
+                    text-align: left;
+                  }
+                  .footer-center {
+                    text-align: center;
+                  }
+                  .footer-right {
+                    text-align: right;
+                  }
                 </style>
               </head>
               <body>
@@ -369,11 +383,12 @@ frappe.query_reports["Cash & Bank Report"] = {
                     `).join("")}
                   </tbody>
                 </table>
+
                 <!-- Total Row Moved Outside Table -->
                 <table style="margin-top: -1px;">
                   <tfoot>
                     <tr>
-                      <th colspan="4" style="text-align:right;">Total</th>
+                      <th colspan="7" style="text-align:right;">Total</th>
                       <th style="text-align:right;">${format_number(total_expense)}</th>
                       <th style="text-align:right;">${format_number(total_payments)}</th>
                       <th style="text-align:right;">${format_number(total_receipts)}</th>
@@ -381,11 +396,22 @@ frappe.query_reports["Cash & Bank Report"] = {
                   </tfoot>
                 </table>
 
+                <!-- Footer Section -->
                 <div class="footer">
-                  <div class="footer-left">Created by: ${frappe.session.user}</div>
-                  <div class="footer-center">Submitted By: Not Submitted</div>
-                  <div class="footer-right">Approved By: Taimoor</div>
+                  <div class="footer-left">
+                    <strong>Created By:</strong><br>
+                    ${frappe.session.user}
+                  </div>
+                  <div class="footer-center">
+                    <strong>Submitted By:</strong><br>
+                    Accountant
+                  </div>
+                  <div class="footer-right">
+                    <strong>Approved By:</strong><br>
+                    Director
+                  </div>
                 </div>
+
               </body>
             </html>
           `;
