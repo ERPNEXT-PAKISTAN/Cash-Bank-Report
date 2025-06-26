@@ -181,26 +181,111 @@ frappe.query_reports["Cash & Bank Report"] = {
           });
 
           const data = result.message.result || [];
+          const summary = result.message.summary || [];
 
-          // Compute totals from rows
-          let total_debit = 0, total_credit = 0, total_expense = 0;
+          // Log for debugging
+          console.log("Full Result:", JSON.stringify(result, null, 2));
+          console.log("Summary:", summary);
+          console.log("Data:", data);
 
+          // Compute totals from data for the detailed ledger table and fallback summary
+          let total_expense = 0, total_payments = 0, total_receipts = 0;
           data.forEach(row => {
-            total_debit += row.receipts || 0;
-            total_credit += row.payments || 0;
-            total_expense += row.expense || 0;
+            total_expense += parseFloat(row.expense || 0);
+            total_payments += parseFloat(row.payments || 0);
+            total_receipts += parseFloat(row.receipts || 0);
           });
 
-          // Get Opening Balance from backend or simulate
-          const openingBalance = result.message.opening_balance || 0;
-          const closingBalance = openingBalance + total_debit - total_credit;
-          const netCashFlow = total_debit - total_credit;
-
-          // Format number
+          // Format number to match Python's format_with_comma
           function format_number(val) {
-            val = val || 0;
-            return parseFloat(val).toLocaleString("en-PK", { maximumFractionDigits: 0 });
+            try {
+              val = parseInt(val) || 0;
+              let s = val.toString();
+              if (s.length <= 3) return s;
+              let parts = [];
+              while (s.length > 3) {
+                parts.unshift(s.slice(-3));
+                s = s.slice(0, -3);
+              }
+              parts.unshift(s);
+              return parts.join(",");
+            } catch (e) {
+              console.error("Error formatting number:", e);
+              return "0";
+            }
           }
+
+          // Extract summary values or compute fallback
+          let summaryMap = {};
+          if (summary && summary.length > 0) {
+            summary.forEach(item => {
+              if (item.label && item.value !== undefined) {
+                summaryMap[item.label] = item.value.toString();
+              } else {
+                console.warn(`Invalid summary item: ${JSON.stringify(item)}`);
+              }
+            });
+          } else {
+            console.warn("Summary array is empty, computing fallback values from data");
+            // Fetch opening and closing balances from backend
+            const openingBalanceRes = await frappe.call({
+              method: "frappe.client.get_value",
+              args: {
+                doctype: "GL Entry",
+                filters: {
+                  is_cancelled: 0,
+                  account: filters.account,
+                  posting_date: ["<", filters.posting_date]
+                },
+                fieldname: "sum(debit) - sum(credit) as balance"
+              }
+            });
+            const opening = openingBalanceRes.message?.balance || 0;
+
+            const closingBalanceRes = await frappe.call({
+              method: "frappe.client.get_value",
+              args: {
+                doctype: "GL Entry",
+                filters: {
+                  is_cancelled: 0,
+                  account: filters.account,
+                  posting_date: ["<=", filters.posting_date]
+                },
+                fieldname: "sum(debit) - sum(credit) as balance"
+              }
+            });
+            const closing = closingBalanceRes.message?.balance || 0;
+
+            // Build fallback summary
+            summaryMap = {
+              "Opening Balance": format_number(opening),
+              "Today Receipts": format_number(total_receipts),
+              "Total Balance": format_number(opening + total_receipts),
+              "Net Cash Flow": format_number(total_receipts - total_payments),
+              "Total Payments": format_number(total_payments),
+              "Total Expense": format_number(total_expense),
+              "Other Payments": format_number(total_payments - total_expense),
+              "Closing Balance": format_number(closing)
+            };
+          }
+
+          // Verify required summary keys
+          const requiredKeys = [
+            "Opening Balance",
+            "Today Receipts",
+            "Total Balance",
+            "Net Cash Flow",
+            "Total Payments",
+            "Total Expense",
+            "Other Payments",
+            "Closing Balance"
+          ];
+          requiredKeys.forEach(key => {
+            if (!summaryMap[key]) {
+              console.warn(`Missing summary key: ${key}`);
+              summaryMap[key] = "0";
+            }
+          });
 
           // Fetch company info
           const companyRes = await frappe.db.get_value("Company", { name: frappe.defaults.get_default("company") }, "*");
@@ -219,14 +304,14 @@ frappe.query_reports["Cash & Bank Report"] = {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr><td>Opening Balance</td><td>${format_number(openingBalance)}</td></tr>
-                  <tr><td>Today Receipts</td><td>${format_number(total_debit)}</td></tr>
-                  <tr><td>Total Balance</td><td>${format_number(openingBalance + total_debit)}</td></tr>
-                  <tr><td>Net Cash Flow</td><td>${format_number(netCashFlow)}</td></tr>
-                  <tr><td>Total Payments</td><td>${format_number(total_credit)}</td></tr>
-                  <tr><td>Total Expense</td><td>${format_number(total_expense)}</td></tr>
-                  <tr><td>Other Payments</td><td>${format_number(total_credit - total_expense)}</td></tr>
-                  <tr><td>Closing Balance</td><td>${format_number(closingBalance)}</td></tr>
+                  <tr><td>Opening Balance</td><td>${summaryMap["Opening Balance"]}</td></tr>
+                  <tr><td>Today Receipts</td><td>${summaryMap["Today Receipts"]}</td></tr>
+                  <tr><td>Total Balance</td><td>${summaryMap["Total Balance"]}</td></tr>
+                  <tr><td>Net Cash Flow</td><td>${summaryMap["Net Cash Flow"]}</td></tr>
+                  <tr><td>Total Payments</td><td>${summaryMap["Total Payments"]}</td></tr>
+                  <tr><td>Total Expense</td><td>${summaryMap["Total Expense"]}</td></tr>
+                  <tr><td>Other Payments</td><td>${summaryMap["Other Payments"]}</td></tr>
+                  <tr><td>Closing Balance</td><td>${summaryMap["Closing Balance"]}</td></tr>
                 </tbody>
               </table>
             </div>
@@ -314,8 +399,8 @@ frappe.query_reports["Cash & Bank Report"] = {
                     <tr>
                       <th colspan="4" style="text-align:right;">Total</th>
                       <th style="text-align:right;">${format_number(total_expense)}</th>
-                      <th style="text-align:right;">${format_number(total_credit)}</th>
-                      <th style="text-align:right;">${format_number(total_debit)}</th>
+                      <th style="text-align:right;">${format_number(total_payments)}</th>
+                      <th style="text-align:right;">${format_number(total_receipts)}</th>
                     </tr>
                   </tfoot>
                 </table>
