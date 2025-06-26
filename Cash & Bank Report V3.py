@@ -151,9 +151,9 @@ frappe.query_reports["Cash & Bank Report"] = {
   ],
 
   onload: function(report) {
-    // Add Printable HTML button only once
-    if (!report.page.inner_toolbar_buttons || !report.page.inner_toolbar_buttons["Printable HTML"]) {
-      report.page.add_inner_button("Printable HTML", async () => {
+    // Add Print button outside view list
+    if (!report.page.main_buttons || !report.page.main_buttons["Print"]) {
+      report.page.add_button("Print", async () => {
         const filters = report.get_filter_values();
 
         if (!filters.posting_date || !filters.account) {
@@ -438,11 +438,11 @@ frappe.query_reports["Cash & Bank Report"] = {
           console.error("Error generating printable report:", err);
           frappe.throw(__("Failed to generate Printable HTML. Please check browser console."));
         }
-      }, __("View"), true);
+      });
 
       // Prevent duplicate buttons
-      if (!report.page.inner_toolbar_buttons) report.page.inner_toolbar_buttons = {};
-      report.page.inner_toolbar_buttons["Printable HTML"] = true;
+      if (!report.page.main_buttons) report.page.main_buttons = {};
+      report.page.main_buttons["Print"] = true;
     }
   }
 };
