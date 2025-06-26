@@ -116,7 +116,8 @@ data = columns, result, message, None, summary
 
 
 
-# Add in Client Script for Filter & View
+# Add in Client Script for Filter & Print
+
 Javascript
 
 frappe.query_reports["Cash & Bank Report"] = {
@@ -149,18 +150,15 @@ frappe.query_reports["Cash & Bank Report"] = {
       reqd: 1
     }
   ],
-
   onload: function(report) {
     // Add Print button outside view list
     if (!report.page.main_buttons || !report.page.main_buttons["Print"]) {
       report.page.add_button("Print", async () => {
         const filters = report.get_filter_values();
-
         if (!filters.posting_date || !filters.account) {
           frappe.throw(__("Please select both Posting Date and Account"));
           return;
         }
-
         try {
           const result = await new Promise((resolve, reject) => {
             frappe.call({
@@ -178,17 +176,14 @@ frappe.query_reports["Cash & Bank Report"] = {
               }
             });
           });
-
           const data = result.message.result || [];
           const summary = result.message.summary || [];
-
           let total_expense = 0, total_payments = 0, total_receipts = 0;
           data.forEach(row => {
             total_expense += parseFloat(row.expense || 0);
             total_payments += parseFloat(row.payments || 0);
             total_receipts += parseFloat(row.receipts || 0);
           });
-
           function format_number(val) {
             try {
               val = parseInt(val) || 0;
@@ -206,7 +201,6 @@ frappe.query_reports["Cash & Bank Report"] = {
               return "0";
             }
           }
-
           let summaryMap = {};
           if (summary && summary.length > 0) {
             summary.forEach(item => {
@@ -231,7 +225,6 @@ frappe.query_reports["Cash & Bank Report"] = {
               }
             });
             const opening = openingBalanceRes.message?.balance || 0;
-
             const closingBalanceRes = await frappe.call({
               method: "frappe.client.get_value",
               args: {
@@ -245,7 +238,6 @@ frappe.query_reports["Cash & Bank Report"] = {
               }
             });
             const closing = closingBalanceRes.message?.balance || 0;
-
             summaryMap = {
               "Opening Balance": format_number(opening),
               "Today Receipts": format_number(total_receipts),
@@ -257,7 +249,6 @@ frappe.query_reports["Cash & Bank Report"] = {
               "Closing Balance": format_number(closing)
             };
           }
-
           const requiredKeys = [
             "Opening Balance", "Today Receipts", "Total Balance", "Net Cash Flow",
             "Total Payments", "Total Expense", "Other Payments", "Closing Balance"
@@ -268,12 +259,10 @@ frappe.query_reports["Cash & Bank Report"] = {
               summaryMap[key] = "0";
             }
           });
-
           const companyRes = await frappe.db.get_value("Company", { name: frappe.defaults.get_default("company") }, "*");
           const company = companyRes.message || {};
           const companyName = company.name || "";
           const logoUrl = company.logo ? company.logo : "/files/logo CCL.JPG";
-
           const balancesHtml = `
             <div style="margin-bottom: 20px; display: inline-block; vertical-align: top;">
               <table style="width: 300px; border-collapse: collapse; table-layout: fixed;">
@@ -287,7 +276,6 @@ frappe.query_reports["Cash & Bank Report"] = {
               </table>
             </div>
           `;
-
           const summaryHtml = `
             <div style="margin-bottom: 20px; display: inline-block; vertical-align: top; margin-left: 20px;">
               <table style="width: 300px; border-collapse: collapse; table-layout: fixed;">
@@ -301,7 +289,6 @@ frappe.query_reports["Cash & Bank Report"] = {
               </table>
             </div>
           `;
-
           const html = `
             <html>
               <head>
@@ -352,12 +339,9 @@ frappe.query_reports["Cash & Bank Report"] = {
                     <img src="${logoUrl}" alt="Company Logo">
                   </div>
                 </div>
-
                 <hr>
-
                 ${balancesHtml}
                 ${summaryHtml}
-
                 <h2>Detailed Ledger Transactions Report</h2>
                 <table>
                   <thead>
@@ -384,6 +368,9 @@ frappe.query_reports["Cash & Bank Report"] = {
                       </tr>
                     `).join("")}
                   </tbody>
+                </table>
+                <!-- Total Row Moved Outside Table -->
+                <table style="margin-top: -1px;">
                   <tfoot>
                     <tr>
                       <th colspan="4" style="text-align:right;">Total</th>
@@ -402,21 +389,17 @@ frappe.query_reports["Cash & Bank Report"] = {
               </body>
             </html>
           `;
-
           const newTab = window.open("", "_blank");
           newTab.document.write(html);
           newTab.document.close();
-
           newTab.onload = function () {
             newTab.print();
           };
-
         } catch (err) {
           console.error("Error generating printable report:", err);
           frappe.throw(__("Failed to generate Printable HTML. Please check browser console."));
         }
       });
-
       // Prevent duplicate buttons
       if (!report.page.main_buttons) report.page.main_buttons = {};
       report.page.main_buttons["Print"] = true;
