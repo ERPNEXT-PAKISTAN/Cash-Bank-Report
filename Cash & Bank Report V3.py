@@ -151,7 +151,7 @@ frappe.query_reports["Cash & Bank Report"] = {
   ],
 
   onload: function(report) {
-    // Add Printable HTML button once
+    // Add Printable HTML button only once
     if (!report.page.inner_toolbar_buttons || !report.page.inner_toolbar_buttons["Printable HTML"]) {
       report.page.add_inner_button("Printable HTML", async () => {
         const filters = report.get_filter_values();
@@ -182,10 +182,8 @@ frappe.query_reports["Cash & Bank Report"] = {
 
           const data = result.message.result || [];
 
-          // Compute totals
-          let total_debit = 0;
-          let total_credit = 0;
-          let total_expense = 0;
+          // Compute totals from rows
+          let total_debit = 0, total_credit = 0, total_expense = 0;
 
           data.forEach(row => {
             total_debit += row.receipts || 0;
@@ -193,9 +191,8 @@ frappe.query_reports["Cash & Bank Report"] = {
             total_expense += row.expense || 0;
           });
 
-          // Simulate Opening Balance (from previous rows in dataset)
-          const openingBalance = (result.message.opening_balance || 0);
-
+          // Get Opening Balance from backend or simulate
+          const openingBalance = result.message.opening_balance || 0;
           const closingBalance = openingBalance + total_debit - total_credit;
           const netCashFlow = total_debit - total_credit;
 
@@ -205,32 +202,34 @@ frappe.query_reports["Cash & Bank Report"] = {
             return parseFloat(val).toLocaleString("en-PK", { maximumFractionDigits: 0 });
           }
 
-          // Get company info
+          // Fetch company info
           const companyRes = await frappe.db.get_value("Company", { name: frappe.defaults.get_default("company") }, "*");
           const company = companyRes.message || {};
           const companyName = company.name || "";
           const logoUrl = company.logo ? company.logo : "/assets/erpnext/images/erpnext-logo.svg";
 
-          // Build Summary Table
+          // Build Summary Table (500px)
           const summaryHtml = `
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-              <thead>
-                <tr style="background-color: #f2f2f2;">
-                  <th style="border: 1px solid #ccc; padding: 8px;">Summary</th>
-                  <th style="border: 1px solid #ccc; padding: 8px;">Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><td>Opening Balance</td><td>${format_number(openingBalance)}</td></tr>
-                <tr><td>Today Receipts</td><td>${format_number(total_debit)}</td></tr>
-                <tr><td>Total Balance</td><td>${format_number(openingBalance + total_debit)}</td></tr>
-                <tr><td>Net Cash Flow</td><td>${format_number(netCashFlow)}</td></tr>
-                <tr><td>Total Payments</td><td>${format_number(total_credit)}</td></tr>
-                <tr><td>Total Expense</td><td>${format_number(total_expense)}</td></tr>
-                <tr><td>Other Payments</td><td>${format_number(total_credit - total_expense)}</td></tr>
-                <tr><td>Closing Balance</td><td>${format_number(closingBalance)}</td></tr>
-              </tbody>
-            </table>
+            <div style="margin-bottom: 20px; display: flex; justify-content: center;">
+              <table style="width: 500px; border-collapse: collapse; table-layout: fixed;">
+                <thead>
+                  <tr style="background-color: #f2f2f2;">
+                    <th style="border: 1px solid #ccc; padding: 8px;">Summary</th>
+                    <th style="border: 1px solid #ccc; padding: 8px;">Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td>Opening Balance</td><td>${format_number(openingBalance)}</td></tr>
+                  <tr><td>Today Receipts</td><td>${format_number(total_debit)}</td></tr>
+                  <tr><td>Total Balance</td><td>${format_number(openingBalance + total_debit)}</td></tr>
+                  <tr><td>Net Cash Flow</td><td>${format_number(netCashFlow)}</td></tr>
+                  <tr><td>Total Payments</td><td>${format_number(total_credit)}</td></tr>
+                  <tr><td>Total Expense</td><td>${format_number(total_expense)}</td></tr>
+                  <tr><td>Other Payments</td><td>${format_number(total_credit - total_expense)}</td></tr>
+                  <tr><td>Closing Balance</td><td>${format_number(closingBalance)}</td></tr>
+                </tbody>
+              </table>
+            </div>
           `;
 
           // Generate Printable HTML
@@ -259,13 +258,13 @@ frappe.query_reports["Cash & Bank Report"] = {
                     padding: 5px;
                     text-align: left;
                   }
-                  th { background-color: #f0f0f0; }
+                  th { background-color: #f8facf; }
                   ul { padding-left: 20px; }
                   .footer {
                     margin-top: 50px;
                     text-align: center;
                     font-size: 10px;
-                    color: #888;
+                    color: #e1f7f7;
                   }
                 </style>
               </head>
@@ -283,10 +282,9 @@ frappe.query_reports["Cash & Bank Report"] = {
 
                 <hr>
 
-                <h3>Summary</h3>
                 ${summaryHtml}
 
-                <h3>Detailed Transactions</h3>
+                <h2>Detailed Ledger Transactions Report</h2>
                 <table>
                   <thead>
                     <tr>
@@ -323,7 +321,7 @@ frappe.query_reports["Cash & Bank Report"] = {
                 </table>
 
                 <div class="footer">
-                  Generated on ${frappe.datetime.nowdate()} — Powered by ERPNext
+                  Generated on ${frappe.datetime.nowdate()} — Powered by Tech Craft Pvt Ltd
                 </div>
               </body>
             </html>
