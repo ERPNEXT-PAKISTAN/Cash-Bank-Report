@@ -147,183 +147,205 @@ frappe.query_reports["Cash & Bank Report"] = {
       ],
       default: "Cash with Anam - CCL",
       reqd: 1
-    },
+    }
   ],
 
-  onload: function (report) {
-    report.page.add_inner_button("Printable HTML", function () {
-      const filters = report.get_filter_values();
+  onload: function(report) {
+    // Add Printable HTML button once
+    if (!report.page.inner_toolbar_buttons || !report.page.inner_toolbar_buttons["Printable HTML"]) {
+      report.page.add_inner_button("Printable HTML", async () => {
+        const filters = report.get_filter_values();
 
-      frappe.call({
-        method: "frappe.client.get",
-        args: {
-          doctype: "Company",
-          name: frappe.defaults.get_default("company")
-        },
-        callback: function (company_res) {
-          const company = company_res.message || {};
-          const company_name = company.name || "";
-          const logo_url = company.logo ? company.logo : "/assets/erpnext/images/erpnext-logo.svg";
-
-          frappe.call({
-            method: "frappe.desk.query_report.run",
-            args: {
-              report_name: "Cash & Bank Report",
-              filters: filters
-            },
-            callback: function (r) {
-              const data = r.message.result || [];
-              let summary = r.message.summary || [];
-
-              // DEBUG LOG
-              console.log("Raw Summary Data:", summary);
-
-              // Force validation to ensure all expected labels are present
-              const expectedLabels = [
-                "Opening Balance",
-                "Today Receipts",
-                "Total Balance",
-                "Net Cash Flow",
-                "Total Payments",
-                "Total Expense",
-                "Other Payments",
-                "Closing Balance"
-              ];
-
-              const validatedSummary = expectedLabels.map(label => {
-                const found = summary.find(s => s.label === label);
-                if (!found) {
-                  console.warn(`Missing summary item: ${label}`);
-                  return { label, value: "0", indicator: "Red" };
-                }
-                return found;
-              });
-
-              console.log("Validated Summary:", validatedSummary);
-
-              // Compute totals
-              let total_expense = 0, total_payments = 0, total_receipts = 0;
-              data.forEach(row => {
-                total_expense += row.expense || 0;
-                total_payments += row.payments || 0;
-                total_receipts += row.receipts || 0;
-              });
-
-              function format_number(val) {
-                val = val || 0;
-                return parseFloat(val).toLocaleString("en-PK", { maximumFractionDigits: 0 });
-              }
-
-              const html = `
-              <html>
-                <head>
-                  <title>Cash & Bank Report</title>
-                  <style>
-                    @media print {
-                      @page {
-                        size: landscape;
-                        margin: 10mm;
-                      }
-                    }
-                    body { font-family: sans-serif; font-size: 12px; margin: 20px; }
-                    .header { display: flex; justify-content: space-between; align-items: center; }
-                    .header-left { text-align: left; }
-                    .header-right img { max-width: 150px; }
-                    table {
-                      width: 100%;
-                      border-collapse: collapse;
-                      font-size: 12px;
-                      margin-top: 20px;
-                      table-layout: fixed;
-                      word-wrap: break-word;
-                    }
-                    th, td {
-                      border: 1px solid #444;
-                      padding: 5px;
-                      text-align: left;
-                    }
-                    th { background-color: #f0f0f0; }
-                    ul { padding-left: 20px; }
-                    .footer {
-                      margin-top: 50px;
-                      text-align: center;
-                      font-size: 10px;
-                      color: #888;
-                    }
-                  </style>
-                </head>
-                <body>
-                  <div class="header">
-                    <div class="header-left">
-                      <h2>${company_name}</h2>
-                      <p><strong>Posting Date:</strong> ${filters.posting_date}</p>
-                      <p><strong>Account:</strong> ${filters.account}</p>
-                    </div>
-                    <div class="header-right">
-                      <img src="${logo_url}" alt="Company Logo">
-                    </div>
-                  </div>
-
-                  <hr>
-
-                  <h3>Summary</h3>
-                  <ul>
-                    ${validatedSummary.map(s => `<li><strong>${s.label}:</strong> ${s.value}</li>`).join("")}
-                  </ul>
-
-                  <table>
-                    <thead>
-                      <tr>
-                        <th style="width: 100px;">Posting Date</th>
-                        <th style="width: 130px;">Voucher No</th>
-                        <th style="width: 180px;">Against / Account</th>
-                        <th style="width: 250px;">Remarks / Description</th>
-                        <th style="width: 90px;">Expense</th>
-                        <th style="width: 90px;">Payments</th>
-                        <th style="width: 90px;">Receipts</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      ${data.map(row => `
-                        <tr>
-                          <td>${row.posting_date || ""}</td>
-                          <td>${row.voucher_no || ""}</td>
-                          <td>${row.against_account || ""}</td>
-                          <td>${row.description || ""}</td>
-                          <td style="text-align:right;">${format_number(row.expense)}</td>
-                          <td style="text-align:right;">${format_number(row.payments)}</td>
-                          <td style="text-align:right;">${format_number(row.receipts)}</td>
-                        </tr>
-                      `).join("")}
-                    </tbody>
-                    <tfoot>
-                      <tr>
-                        <th colspan="4" style="text-align:right;">Total</th>
-                        <th style="text-align:right;">${format_number(total_expense)}</th>
-                        <th style="text-align:right;">${format_number(total_payments)}</th>
-                        <th style="text-align:right;">${format_number(total_receipts)}</th>
-                      </tr>
-                    </tfoot>
-                  </table>
-
-                  <div class="footer">
-                    Generated on ${frappe.datetime.nowdate()} — Powered by ERPNext
-                  </div>
-                </body>
-              </html>
-              `;
-
-              const newTab = window.open("", "_blank");
-              newTab.document.write(html);
-              newTab.document.close();
-
-              newTab.onload = function () {
-                newTab.print();
-              };
-            }
-          });
+        if (!filters.posting_date || !filters.account) {
+          frappe.throw(__("Please select both Posting Date and Account"));
+          return;
         }
-      });
-    });
+
+        try {
+          // Run the report
+          const result = await new Promise((resolve, reject) => {
+            frappe.call({
+              method: "frappe.desk.query_report.run",
+              args: {
+                report_name: "Cash & Bank Report",
+                filters: filters
+              },
+              callback: function(r) {
+                if (r.exc) {
+                  reject(r.exc);
+                } else {
+                  resolve(r);
+                }
+              }
+            });
+          });
+
+          const data = result.message.result || [];
+
+          // Compute totals
+          let total_debit = 0;
+          let total_credit = 0;
+          let total_expense = 0;
+
+          data.forEach(row => {
+            total_debit += row.receipts || 0;
+            total_credit += row.payments || 0;
+            total_expense += row.expense || 0;
+          });
+
+          // Simulate Opening Balance (from previous rows in dataset)
+          const openingBalance = (result.message.opening_balance || 0);
+
+          const closingBalance = openingBalance + total_debit - total_credit;
+          const netCashFlow = total_debit - total_credit;
+
+          // Format number
+          function format_number(val) {
+            val = val || 0;
+            return parseFloat(val).toLocaleString("en-PK", { maximumFractionDigits: 0 });
+          }
+
+          // Get company info
+          const companyRes = await frappe.db.get_value("Company", { name: frappe.defaults.get_default("company") }, "*");
+          const company = companyRes.message || {};
+          const companyName = company.name || "";
+          const logoUrl = company.logo ? company.logo : "/assets/erpnext/images/erpnext-logo.svg";
+
+          // Build Summary Table
+          const summaryHtml = `
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+              <thead>
+                <tr style="background-color: #f2f2f2;">
+                  <th style="border: 1px solid #ccc; padding: 8px;">Summary</th>
+                  <th style="border: 1px solid #ccc; padding: 8px;">Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>Opening Balance</td><td>${format_number(openingBalance)}</td></tr>
+                <tr><td>Today Receipts</td><td>${format_number(total_debit)}</td></tr>
+                <tr><td>Total Balance</td><td>${format_number(openingBalance + total_debit)}</td></tr>
+                <tr><td>Net Cash Flow</td><td>${format_number(netCashFlow)}</td></tr>
+                <tr><td>Total Payments</td><td>${format_number(total_credit)}</td></tr>
+                <tr><td>Total Expense</td><td>${format_number(total_expense)}</td></tr>
+                <tr><td>Other Payments</td><td>${format_number(total_credit - total_expense)}</td></tr>
+                <tr><td>Closing Balance</td><td>${format_number(closingBalance)}</td></tr>
+              </tbody>
+            </table>
+          `;
+
+          // Generate Printable HTML
+          const html = `
+            <html>
+              <head>
+                <title>Cash & Bank Report</title>
+                <style>
+                  @media print {
+                    @page { size: landscape; margin: 10mm; }
+                  }
+                  body { font-family: sans-serif; font-size: 12px; margin: 20px; }
+                  .header { display: flex; justify-content: space-between; align-items: center; }
+                  .header-left { text-align: left; }
+                  .header-right img { max-width: 150px; }
+                  table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: 12px;
+                    margin-top: 20px;
+                    table-layout: fixed;
+                    word-wrap: break-word;
+                  }
+                  th, td {
+                    border: 1px solid #444;
+                    padding: 5px;
+                    text-align: left;
+                  }
+                  th { background-color: #f0f0f0; }
+                  ul { padding-left: 20px; }
+                  .footer {
+                    margin-top: 50px;
+                    text-align: center;
+                    font-size: 10px;
+                    color: #888;
+                  }
+                </style>
+              </head>
+              <body>
+                <div class="header">
+                  <div class="header-left">
+                    <h2>${companyName}</h2>
+                    <p><strong>Posting Date:</strong> ${filters.posting_date}</p>
+                    <p><strong>Account:</strong> ${filters.account}</p>
+                  </div>
+                  <div class="header-right">
+                    <img src="${logoUrl}" alt="Company Logo">
+                  </div>
+                </div>
+
+                <hr>
+
+                <h3>Summary</h3>
+                ${summaryHtml}
+
+                <h3>Detailed Transactions</h3>
+                <table>
+                  <thead>
+                    <tr>
+                      <th style="width: 100px;">Posting Date</th>
+                      <th style="width: 130px;">Voucher No</th>
+                      <th style="width: 180px;">Against / Account</th>
+                      <th style="width: 250px;">Description</th>
+                      <th style="width: 90px;">Expense</th>
+                      <th style="width: 90px;">Payments</th>
+                      <th style="width: 90px;">Receipts</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${data.map(row => `
+                      <tr>
+                        <td>${row.posting_date || ""}</td>
+                        <td>${row.voucher_no || ""}</td>
+                        <td>${row.against_account || ""}</td>
+                        <td>${row.description || ""}</td>
+                        <td style="text-align:right;">${format_number(row.expense)}</td>
+                        <td style="text-align:right;">${format_number(row.payments)}</td>
+                        <td style="text-align:right;">${format_number(row.receipts)}</td>
+                      </tr>
+                    `).join("")}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <th colspan="4" style="text-align:right;">Total</th>
+                      <th style="text-align:right;">${format_number(total_expense)}</th>
+                      <th style="text-align:right;">${format_number(total_credit)}</th>
+                      <th style="text-align:right;">${format_number(total_debit)}</th>
+                    </tr>
+                  </tfoot>
+                </table>
+
+                <div class="footer">
+                  Generated on ${frappe.datetime.nowdate()} — Powered by ERPNext
+                </div>
+              </body>
+            </html>
+          `;
+
+          const newTab = window.open("", "_blank");
+          newTab.document.write(html);
+          newTab.document.close();
+
+          newTab.onload = function () {
+            newTab.print();
+          };
+
+        } catch (err) {
+          console.error("Error generating printable report:", err);
+          frappe.throw(__("Failed to generate Printable HTML. Please check browser console."));
+        }
+      }, __("View"), true);
+
+      // Prevent duplicate buttons
+      if (!report.page.inner_toolbar_buttons) report.page.inner_toolbar_buttons = {};
+      report.page.inner_toolbar_buttons["Printable HTML"] = true;
+    }
   }
 };
