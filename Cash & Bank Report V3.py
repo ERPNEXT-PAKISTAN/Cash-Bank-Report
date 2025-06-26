@@ -291,27 +291,40 @@ frappe.query_reports["Cash & Bank Report"] = {
           const companyRes = await frappe.db.get_value("Company", { name: frappe.defaults.get_default("company") }, "*");
           const company = companyRes.message || {};
           const companyName = company.name || "";
-          const logoUrl = company.logo ? company.logo : "/assets/erpnext/images/erpnext-logo.svg";
+          const logoUrl = company.logo ? company.logo : "/files/logo CCL.JPG";
 
-          // Build Summary Table (500px)
-          const summaryHtml = `
-            <div style="margin-bottom: 20px; display: flex; justify-content: center;">
-              <table style="width: 500px; border-collapse: collapse; table-layout: fixed;">
+          // Build two Summary Tables (300px each)
+          const balancesHtml = `
+            <div style="margin-bottom: 20px; display: inline-block; vertical-align: top;">
+              <table style="width: 300px; border-collapse: collapse; table-layout: fixed;">
                 <thead>
                   <tr style="background-color: #f2f2f2;">
-                    <th style="border: 1px solid #ccc; padding: 8px;">Summary</th>
-                    <th style="border: 1px solid #ccc; padding: 8px;">Value</th>
+                    <th colspan="2" style="border: 2px solid #0d0405; padding: 8px;">Opening Balance,  Receipts & Cashflow</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr><td>Opening Balance</td><td>${summaryMap["Opening Balance"]}</td></tr>
-                  <tr><td>Today Receipts</td><td>${summaryMap["Today Receipts"]}</td></tr>
-                  <tr><td>Total Balance</td><td>${summaryMap["Total Balance"]}</td></tr>
-                  <tr><td>Net Cash Flow</td><td>${summaryMap["Net Cash Flow"]}</td></tr>
-                  <tr><td>Total Payments</td><td>${summaryMap["Total Payments"]}</td></tr>
-                  <tr><td>Total Expense</td><td>${summaryMap["Total Expense"]}</td></tr>
-                  <tr><td>Other Payments</td><td>${summaryMap["Other Payments"]}</td></tr>
-                  <tr><td>Closing Balance</td><td>${summaryMap["Closing Balance"]}</td></tr>
+                  <tr><td style="border: 1px solid #050000; padding: 5px;">Opening Balance</td><td style="border: 1px solid #050000; padding: 6px; text-align: right;">${summaryMap["Opening Balance"]}</td></tr>
+                  <tr><td style="border: 1px solid #050000; padding: 5px;">Today Receipts</td><td style="border: 1px solid #050000; padding: 6px; text-align: right;">${summaryMap["Today Receipts"]}</td></tr>
+                  <tr><td style="border: 1px solid #050000; padding: 5px;">Total Balance</td><td style="border: 1px solid #050000; padding: 6px; text-align: right;">${summaryMap["Total Balance"]}</td></tr>
+                  <tr><td style="border: 1px solid #050000; padding: 5px;">Net Cash Flow</td><td style="border: 1px solid #050000; padding: 6px; text-align: right;">${summaryMap["Net Cash Flow"]}</td></tr>
+                </tbody>
+              </table>
+            </div>
+          `;
+
+          const summaryHtml = `
+            <div style="margin-bottom: 20px; display: inline-block; vertical-align: top; margin-left: 20px;">
+              <table style="width: 300px; border-collapse: collapse; table-layout: fixed;">
+                <thead>
+                  <tr style="background-color: #f2f2f2;">
+                    <th colspan="2" style="border: 2px solid #0d0405; padding: 8px;">Expenses, Payments & Closing Balance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td style="border: 1px solid #050000; padding: 6px;">Total Payments</td><td style="border: 1px solid #050000; padding: 6px; text-align: right;">${summaryMap["Total Payments"]}</td></tr>
+                  <tr><td style="border: 1px solid #050000; padding: 6px;">Total Expense</td><td style="border: 1px solid #050000; padding: 6px; text-align: right;">${summaryMap["Total Expense"]}</td></tr>
+                  <tr><td style="border: 1px solid #050000; padding: 6px;">Other Payments</td><td style="border: 1px solid #050000; padding: 6px; text-align: right;">${summaryMap["Other Payments"]}</td></tr>
+                  <tr><td style="border: 1px solid #050000; padding: 6px;">Closing Balance</td><td style="border: 1px solid #050000; padding: 6px; text-align: right;">${summaryMap["Closing Balance"]}</td></tr>
                 </tbody>
               </table>
             </div>
@@ -367,6 +380,7 @@ frappe.query_reports["Cash & Bank Report"] = {
 
                 <hr>
 
+                ${balancesHtml}
                 ${summaryHtml}
 
                 <h2>Detailed Ledger Transactions Report</h2>
