@@ -173,7 +173,33 @@ frappe.query_reports["Cash & Bank Report"] = {
             },
             callback: function (r) {
               const data = r.message.result || [];
-              const summary = r.message.summary || [];
+              let summary = r.message.summary || [];
+
+              // DEBUG LOG
+              console.log("Raw Summary Data:", summary);
+
+              // Force validation to ensure all expected labels are present
+              const expectedLabels = [
+                "Opening Balance",
+                "Today Receipts",
+                "Total Balance",
+                "Net Cash Flow",
+                "Total Payments",
+                "Total Expense",
+                "Other Payments",
+                "Closing Balance"
+              ];
+
+              const validatedSummary = expectedLabels.map(label => {
+                const found = summary.find(s => s.label === label);
+                if (!found) {
+                  console.warn(`Missing summary item: ${label}`);
+                  return { label, value: "0", indicator: "Red" };
+                }
+                return found;
+              });
+
+              console.log("Validated Summary:", validatedSummary);
 
               // Compute totals
               let total_expense = 0, total_payments = 0, total_receipts = 0;
@@ -242,7 +268,7 @@ frappe.query_reports["Cash & Bank Report"] = {
 
                   <h3>Summary</h3>
                   <ul>
-                    ${summary.map(s => `<li><strong>${s.label}:</strong> ${s.value}</li>`).join("")}
+                    ${validatedSummary.map(s => `<li><strong>${s.label}:</strong> ${s.value}</li>`).join("")}
                   </ul>
 
                   <table>
